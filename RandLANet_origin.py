@@ -1,41 +1,17 @@
 from os.path import exists, join
 from os import makedirs
-import os
 from sklearn.metrics import confusion_matrix
 from helper_tool import DataProcessing as DP
 import tensorflow as tf
-import tensorflow_addons as tfa
 import numpy as np
 import helper_tf_util
-import time, math, random
+import time, sys
+
 
 def log_out(out_str, f_out):
     f_out.write(out_str + '\n')
     f_out.flush()
     print(out_str)
-
-
-def fibonacci_sphere(samples=1,randomize=True):
-    rnd = 1.
-    if randomize:
-        rnd = random.random() * samples
-
-    points = [[0,0,0]]
-    offset = 2./samples
-    increment = math.pi * (3. - math.sqrt(5.))
-
-    for i in range(samples-1):
-        y = ((i * offset) - 1) + (offset / 2)
-        r = math.sqrt(1 - pow(y,2))
-
-        phi = ((i + rnd) % samples) * increment
-
-        x = math.cos(phi) * r
-        z = math.sin(phi) * r
-
-        points.append([x,y,z])
-
-    return points
 
 
 class Network:
@@ -45,8 +21,7 @@ class Network:
         # Path of the result folder
         if self.config.saving:
             if self.config.saving_path is None:
-                # self.saving_path = time.strftime('results/Log_test_20_{}'.format(self.config.test_area))
-                self.saving_path = time.strftime('results/Log_Semantic3D_0')
+                self.saving_path = time.strftime('results/Log_%Y-%m-%d_%H-%M-%S', time.gmtime())
             else:
                 self.saving_path = self.config.saving_path
             makedirs(self.saving_path) if not exists(self.saving_path) else None
@@ -63,19 +38,6 @@ class Network:
             self.inputs['input_inds'] = flat_inputs[4 * num_layers + 2]
             self.inputs['cloud_inds'] = flat_inputs[4 * num_layers + 3]
 
-            K_points_numpy = np.array(fibonacci_sphere(self.config.k_n))
-            K_padding = np.zeros((self.config.k_n, self.config.k_n))
-            K_padding[0, 0] = 1.
-            K_padding = K_padding[None, None, :, :]
-            self.inputs['K_points'] = tf.Variable(K_points_numpy.astype(np.float32),
-                           name='kernel_points',
-                           trainable=False,
-                           dtype=tf.float32)
-            self.inputs['K_padding'] = tf.Variable(K_padding.astype(np.float32),
-                           name='K_padding',
-                           trainable=False,
-                           dtype=tf.float32)
-
             self.labels = self.inputs['labels']
             self.is_training = tf.compat.v1.placeholder(tf.bool, shape=())
             self.training_step = 1
@@ -84,14 +46,11 @@ class Network:
             self.accuracy = 0
             self.mIou_list = [0]
             self.class_weights = DP.get_class_weights(dataset.name)
-            self.Log_file = open('log_train_0_' + dataset.name + str(dataset.val_split) + '.txt', 'a')
+            self.Log_file = open('log_train_' + str(dataset.val_split) + '.txt', 'a')
 
         with tf.compat.v1.variable_scope('layers'):
             self.logits = self.inference(self.inputs, self.is_training)
 
-        #####################################################################
-        # Ignore the invalid point (unlabeled) when calculating the loss #
-        #####################################################################
         with tf.compat.v1.variable_scope('loss'):
             self.logits = tf.reshape(self.logits, [-1, config.num_classes])
             self.labels = tf.reshape(self.labels, [-1])
@@ -117,9 +76,7 @@ class Network:
 
         with tf.compat.v1.variable_scope('optimizer'):
             self.learning_rate = tf.Variable(config.learning_rate, trainable=False, name='learning_rate')
-            self.train_op = tf.compat.v1.train.AdamOptimizer(self.learning_rate).minimize(self.loss)  #AdamOptimizer(self.learning_rate).minimize(self.loss)
-            # self.train_op2 = tf.compat.v1.train.MomentumOptimizer(self.learning_rate, 0.9).minimize(self.loss)
-
+            self.train_op = tf.compat.v1.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
             self.extra_update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
 
         with tf.compat.v1.variable_scope('results'):
@@ -132,7 +89,6 @@ class Network:
             tf.compat.v1.summary.scalar('accuracy', self.accuracy)
 
         my_vars = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES)
-        # my_vars = [v for v in tf.compat.v1.global_variables() if "Momentum" not in v.name]
         self.saver = tf.compat.v1.train.Saver(my_vars, max_to_keep=100)
         c_proto = tf.compat.v1.ConfigProto()
         c_proto.gpu_options.allow_growth = True
@@ -140,20 +96,6 @@ class Network:
         self.merged = tf.compat.v1.summary.merge_all()
         self.train_writer = tf.compat.v1.summary.FileWriter(config.train_sum_dir, self.sess.graph)
         self.sess.run(tf.compat.v1.global_variables_initializer())
-
-        # Load trained model
-        self.saving_path = "results/Log_Semantic3D_0"
-        if exists(join(self.saving_path, "snapshots")):
-            chosen_folder = self.saving_path
-            snap_path = join(chosen_folder, 'snapshots')
-            snap_steps = [int(f[:-5].split('-')[-1]) for f in os.listdir(snap_path) if f[-5:] == '.meta']
-            chosen_step = np.sort(snap_steps)[-1]
-            chosen_snap = join(snap_path, 'snap-{:d}'.format(chosen_step))
-            self.saver.restore(self.sess, chosen_snap)
-            print("Model restored from " + chosen_snap)
-        
-        # my_vars = [v for v in tf.compat.v1.global_variables() if "Adam" not in v.name]
-        # self.saver = tf.compat.v1.train.Saver(my_vars, max_to_keep=100)
 
     def inference(self, inputs, is_training):
 
@@ -165,21 +107,19 @@ class Network:
 
         # ###########################Encoder############################
         f_encoder_list = []
-        # self.all_weights_all = []
+        self.print_op = []
         for i in range(self.config.num_layers):
-            f_encoder_i = self.dilated_res_block(feature, inputs['xyz'][i], inputs['K_points'], inputs['K_padding'],
-                                                 inputs['neigh_idx'][i], d_out[i], 'Encoder_layer_' + str(i), is_training)
-                                                 
+            f_encoder_i, print_op = self.dilated_res_block(feature, inputs['xyz'][i], inputs['neigh_idx'][i], d_out[i],
+                                                 'Encoder_layer_' + str(i), is_training)
             f_sampled_i = self.random_sample(f_encoder_i, inputs['sub_idx'][i])
             feature = f_sampled_i
             if i == 0:
                 f_encoder_list.append(f_encoder_i)
             f_encoder_list.append(f_sampled_i)
-            # self.all_weights_all.append(all_weights)
+            self.print_op.append(print_op)
         # ###########################Encoder############################
 
-        feature = helper_tf_util.conv2d(f_encoder_list[-1], f_encoder_list[-1].get_shape()[3], [1, 1],
-                                        'decoder_0',
+        feature = helper_tf_util.conv2d(f_encoder_list[-1], f_encoder_list[-1].get_shape()[3], [1, 1], 'decoder_0',
                                         [1, 1], 'VALID', True, is_training)
 
         # ###########################Decoder############################
@@ -188,7 +128,7 @@ class Network:
             f_interp_i = self.nearest_interpolation(feature, inputs['interp_idx'][-j - 1])
             f_decoder_i = helper_tf_util.conv2d_transpose(tf.concat([f_encoder_list[-j - 2], f_interp_i], axis=3),
                                                           f_encoder_list[-j - 2].get_shape()[-1], [1, 1],
-                                                          'Decoder_layer_' + str(j), [1, 1], 'VALID', bn=True,
+                                                   'Decoder_layer_' + str(j), [1, 1], 'VALID', bn=True,
                                                           is_training=is_training)
             feature = f_decoder_i
             f_decoder_list.append(f_decoder_i)
@@ -215,10 +155,10 @@ class Network:
                        self.logits,
                        self.labels,
                        self.accuracy]
-                       # self.all_weights_all]
+                       # self.print_op]
                 _, _, summary, l_out, probs, labels, acc = self.sess.run(ops, {self.is_training: True})
                 self.train_writer.add_summary(summary, self.training_step)
-                # print(all_weights_all[0][0, 0, :, :], all_weights_all[1][0, 0, :, :])
+                # print(print_op)
                 t_end = time.time()
                 if self.training_step % 50 == 0:
                     message = 'Step {:08d} L_out={:5.3f} Acc={:4.2f} ''---{:8.2f} ms/batch'
@@ -232,7 +172,7 @@ class Network:
                     # Save the best model
                     snapshot_directory = join(self.saving_path, 'snapshots')
                     makedirs(snapshot_directory) if not exists(snapshot_directory) else None
-                    self.saver.save(self.sess, snapshot_directory + '/snap', global_step=98888)  # self.training_step)
+                    self.saver.save(self.sess, snapshot_directory + '/snap', global_step=self.training_step)
                 self.mIou_list.append(m_iou)
                 log_out('Best m_IoU is: {:5.3f}'.format(max(self.mIou_list)), self.Log_file)
 
@@ -327,119 +267,35 @@ class Network:
         output_loss = tf.reduce_mean(input_tensor=weighted_losses)
         return output_loss
 
-    def dilated_res_block(self, feature, xyz, K_points, K_padding, neigh_idx, d_out, name, is_training):
+    def dilated_res_block(self, feature, xyz, neigh_idx, d_out, name, is_training):
         f_pc = helper_tf_util.conv2d(feature, d_out // 2, [1, 1], name + 'mlp1', [1, 1], 'VALID', True, is_training)
-        f_pc = self.building_block(xyz, f_pc, K_points, K_padding, neigh_idx, d_out // 2, name + 'LFA', is_training)
+        f_pc, print_op = self.building_block(xyz, f_pc, neigh_idx, d_out // 2, name + 'LFA', is_training)
         f_pc = helper_tf_util.conv2d(f_pc, d_out * 2, [1, 1], name + 'mlp2', [1, 1], 'VALID', True, is_training,
                                      activation_fn=None)
-        shortcut = helper_tf_util.conv2d(feature, d_out * 2, [1, 1], name + 'shortcut', [1, 1], 'VALID',
-                                         activation_fn=None, bn=True, is_training=is_training)
-        return tf.nn.leaky_relu(f_pc + shortcut)
+        shortcut = helper_tf_util.conv2d(feature, d_out * 2, [1, 1], name + 'shortcut', [1, 1], 'VALID', activation_fn=None,
+                                         bn=True, is_training=is_training)
+        return tf.nn.leaky_relu(f_pc + shortcut), print_op
 
-    def dilated_res_block3(self, feature, xyz, K_points, K_padding, neigh_idx, d_out, name, is_training):
-        f_pc = helper_tf_util.conv2d(feature, d_out // 2, [1, 1], name + 'mlp1', [1, 1], 'VALID', True, is_training)
-        f_pc = self.building_block(xyz, f_pc, K_points, K_padding, neigh_idx, d_out // 2, name + 'LFA', is_training)
-        f_pc = helper_tf_util.conv2d(f_pc, d_out, [1, 1], name + 'mlp2', [1, 1], 'VALID', True, is_training,
-                                     activation_fn=None)
-        shortcut = helper_tf_util.conv2d(feature, d_out, [1, 1], name + 'shortcut', [1, 1], 'VALID',
-                                         activation_fn=None, bn=True, is_training=is_training)
-        return tf.nn.leaky_relu(tf.concat([f_pc, shortcut], axis=-1))
-
-    def dilated_res_block2(self, feature, xyz, K_points, K_padding, neigh_idx, d_out, name, is_training):
+    def building_block(self, xyz, feature, neigh_idx, d_out, name, is_training):
         d_in = feature.get_shape()[-1]
-        num_kpoints = K_points.get_shape()[0]
-        batch_size = tf.shape(input=xyz)[0]
-        num_points = tf.shape(input=xyz)[1]
-
-        ####### 1 #######
-        f_xyz = tf.expand_dims(xyz, 2)
-        #f_out_1 = helper_tf_util.conv2d(tf.concat([feature, f_xyz], axis=-1), d_out // 2, [1, 1], \
-        #            name + 'mlp1', [1, 1], 'VALID', True, is_training)
-        ####### 2,3,4 #######
-        neighbor_xyz = self.gather_neighbour(xyz, neigh_idx)
-        xyz_tile = tf.tile(f_xyz, [1, 1, tf.shape(input=neigh_idx)[-1], 1])
-        relative_xyz = neighbor_xyz - xyz_tile
-        relative_dis = tf.sqrt(tf.reduce_sum(input_tensor=tf.square(relative_xyz), axis=-1, keepdims=True))
-        f_xyz = tf.concat([relative_dis, relative_xyz, xyz_tile, neighbor_xyz], axis=-1)
-        f_xyz = helper_tf_util.conv2d(f_xyz, d_in, [1, 1], name + 'mlp1', [1, 1], 'VALID', True, is_training)
-        f_neighbours = self.gather_neighbour(tf.squeeze(feature, axis=2), neigh_idx)
-        f_concat = tf.concat([f_neighbours, f_xyz], axis=-1)
-        ####### 2 ####### #### cos ####
-        all_weights = tf.tensordot(relative_xyz, K_points, [[3], [1]])
-        all_weights = tf.maximum(all_weights, 0) + K_padding
-        all_weights = all_weights / (tf.reduce_sum(all_weights, axis=2, keepdims=True) + 1e-6)
-        all_weights = tf.square(all_weights)
-        all_weights = all_weights / (tf.reduce_sum(all_weights, axis=2, keepdims=True) + 1e-6)
-        all_weights = tf.where(all_weights < 0.1, 0., all_weights)         
-
-        f_pc_agg = tf.einsum("uvki,uvkj->uvij", f_concat, all_weights) # f_xyz = tf.matmul(f_xyz, all_weights)
-        f_pc_agg = tf.reshape(f_pc_agg, shape=[-1, num_points, num_kpoints*d_in*2])
-        f_pc_agg = helper_tf_util.conv1d(f_pc_agg, d_out // 2, 1, name + 'att_pooling_1', 1, 'VALID', True, is_training)
-        f_out_2 = tf.reshape(f_pc_agg, [-1, num_points, 1, d_out // 2])
-        ####### 3 #######
-        f_out_3 = self.att_pooling(f_concat, d_out // 2, name + 'att_pooling_2', is_training)
-        ####### 4 #######
-        f_out_4 = helper_tf_util.conv2d(f_concat, d_out // 2, [1, 1], name + 'mlp3', [1, 1], 'VALID', True, is_training)
-        f_out_4 = tf.reduce_max(f_out_4, axis=2, keepdims=True)
-
-        f_out = tf.concat([f_out_2, f_out_3, f_out_4], axis=-1)
-        f_out = helper_tf_util.conv2d(f_out_3, d_out * 2, [1, 1], name + 'mlp4', [1, 1], 'VALID', True, is_training)
-        shortcut = helper_tf_util.conv2d(feature, d_out * 2, [1, 1], name + 'shortcut', [1, 1], 'VALID',
-                                         activation_fn=None, bn=True, is_training=is_training)
-        return tf.nn.leaky_relu(f_out + shortcut)
-
-    def building_block(self, xyz, feature, K_points, K_padding, neigh_idx, d_out, name, is_training):
-        d_in = feature.get_shape()[-1]
-        num_kpoints = K_points.get_shape()[0]
-        batch_size = tf.shape(input=xyz)[0]
-        num_points = tf.shape(input=xyz)[1]
-        
-        xyz_neighbours = self.gather_neighbour(xyz, neigh_idx)
-        xyz_neighbours = xyz_neighbours - tf.expand_dims(xyz, 2)
-
-        #### linear ####
-        # xyz_neighbours = tf.expand_dims(xyz_neighbours, 3)
-        # xyz_neighbours = tf.tile(xyz_neighbours, [1, 1, 1, num_kpoints, 1])
-        # differences = xyz_neighbours - K_points
-        # # Get the square distances [n_points, n_neighbors, n_kpoints]
-        # sq_distances = tf.reduce_sum(input_tensor=tf.square(differences), axis=4)
-        # all_weights = tf.maximum(1 - tf.sqrt(sq_distances), 0)
-        #### cos ####
-        all_weights = tf.tensordot(xyz_neighbours, K_points, [[3], [1]])
-        all_weights = tf.maximum(all_weights, 0) + K_padding
-        all_weights = all_weights / (tf.reduce_sum(all_weights, axis=2, keepdims=True) + 1e-6)
-        all_weights = tf.square(all_weights)
-        all_weights = all_weights / (tf.reduce_sum(all_weights, axis=2, keepdims=True) + 1e-6)
-        all_weights = tf.where(all_weights < 0.1, 0., all_weights) 
-        #all_weights = tfa.activations.sparsemax(all_weights, axis=2)
-        
-        #### 1 ####
         f_xyz = self.relative_pos_encoding(xyz, neigh_idx)
+        print_op = tf.print(tf.shape(input=f_xyz),output_stream=sys.stderr)
         f_xyz = helper_tf_util.conv2d(f_xyz, d_in, [1, 1], name + 'mlp1', [1, 1], 'VALID', True, is_training)
         f_neighbours = self.gather_neighbour(tf.squeeze(feature, axis=2), neigh_idx)
         f_concat = tf.concat([f_neighbours, f_xyz], axis=-1)
+        f_pc_agg = self.att_pooling(f_concat, d_out // 2, name + 'att_pooling_1', is_training)
 
-        f_concat = tf.einsum("uvki,uvkj->uvij", f_concat, all_weights) # f_xyz = tf.matmul(f_xyz, all_weights)
-        f_concat = tf.reshape(f_concat, shape=[-1, num_points, num_kpoints*d_in*2])
-        f_pc_agg = helper_tf_util.conv1d(f_concat, d_out, 1, name + 'att_pooling_1', 1, 'VALID', True, is_training)
-        f_pc_agg = tf.reshape(f_pc_agg, [-1, num_points, 1, d_out])
-
-        # #### 2 ####
-        # f_xyz = helper_tf_util.conv2d(f_xyz, d_out // 2, [1, 1], name + 'mlp2', [1, 1], 'VALID', True, is_training)
-        # f_neighbours = self.gather_neighbour(tf.squeeze(f_pc_agg, axis=2), neigh_idx)
-        # f_concat = tf.concat([f_neighbours, f_xyz], axis=-1)
-
-        # f_concat = tf.einsum("uvki,uvkj->uvij", f_concat, all_weights) # f_xyz = tf.matmul(f_xyz, all_weights)
-        # f_concat = tf.reshape(f_concat, shape=[-1, num_points, num_kpoints*d_in])
-        # f_pc_agg = helper_tf_util.conv1d(f_concat, d_out, 1, name + 'att_pooling_2', 1, 'VALID', True, is_training)
-        # f_pc_agg = tf.reshape(f_pc_agg, [-1, num_points, 1, d_out])
-        return f_pc_agg #, all_weights
+        f_xyz = helper_tf_util.conv2d(f_xyz, d_out // 2, [1, 1], name + 'mlp2', [1, 1], 'VALID', True, is_training)
+        f_neighbours = self.gather_neighbour(tf.squeeze(f_pc_agg, axis=2), neigh_idx)
+        f_concat = tf.concat([f_neighbours, f_xyz], axis=-1)
+        f_pc_agg = self.att_pooling(f_concat, d_out, name + 'att_pooling_2', is_training)
+        return f_pc_agg, print_op
 
     def relative_pos_encoding(self, xyz, neigh_idx):
         neighbor_xyz = self.gather_neighbour(xyz, neigh_idx)
         xyz_tile = tf.tile(tf.expand_dims(xyz, axis=2), [1, 1, tf.shape(input=neigh_idx)[-1], 1])
         relative_xyz = xyz_tile - neighbor_xyz
-        relative_dis = tf.sqrt(tf.reduce_sum(input_tensor=tf.square(relative_xyz), axis=-1, keepdims=True))
+        relative_dis = tf.reduce_sum(input_tensor=relative_xyz, axis=-1, keepdims=True)
         relative_feature = tf.concat([relative_dis, relative_xyz, xyz_tile, neighbor_xyz], axis=-1)
         return relative_feature
 

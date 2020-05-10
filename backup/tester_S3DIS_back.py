@@ -16,19 +16,19 @@ def log_out(out_str, log_f_out):
 
 class ModelTester:
     def __init__(self, model, dataset, restore_snap=None):
-        my_vars = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES)
-        self.saver = tf.compat.v1.train.Saver(my_vars, max_to_keep=100)
+        my_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+        self.saver = tf.train.Saver(my_vars, max_to_keep=100)
         self.Log_file = open('log_test_' + str(dataset.val_split) + '.txt', 'a')
 
         # Create a session for running Ops on the Graph.
         on_cpu = False
         if on_cpu:
-            c_proto = tf.compat.v1.ConfigProto(device_count={'GPU': 0})
+            c_proto = tf.ConfigProto(device_count={'GPU': 0})
         else:
-            c_proto = tf.compat.v1.ConfigProto()
+            c_proto = tf.ConfigProto()
             c_proto.gpu_options.allow_growth = True
-        self.sess = tf.compat.v1.Session(config=c_proto)
-        self.sess.run(tf.compat.v1.global_variables_initializer())
+        self.sess = tf.Session(config=c_proto)
+        self.sess.run(tf.global_variables_initializer())
 
         # Load trained model
         if restore_snap is not None:
@@ -58,7 +58,7 @@ class ModelTester:
                 i += 1
 
         # Test saving path
-        saving_path = join('results', 'Log_test_{}'.format(model.config.test_area)) # %Y-%m-%d_%H-%M-%S', time.gmtime())
+        saving_path = time.strftime('results/Log_%Y-%m-%d_%H-%M-%S', time.gmtime())
         test_path = join('test', saving_path.split('/')[-1])
         makedirs(test_path) if not exists(test_path) else None
         makedirs(join(test_path, 'val_preds')) if not exists(join(test_path, 'val_preds')) else None

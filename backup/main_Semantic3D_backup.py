@@ -8,7 +8,7 @@ from helper_tool import ConfigSemantic3D as cfg
 import tensorflow as tf
 import numpy as np
 import pickle, argparse, os
-tf.compat.v1.disable_eager_execution()
+
 
 class Semantic3D:
     def __init__(self):
@@ -243,10 +243,10 @@ class Semantic3D:
             input_up_samples = []
 
             for i in range(cfg.num_layers):
-                neigh_idx = tf.compat.v1.py_func(DP.knn_search, [batch_xyz, batch_xyz, cfg.k_n], tf.int32)
-                sub_points = batch_xyz[:, :tf.shape(input=batch_xyz)[1] // cfg.sub_sampling_ratio[i], :]
-                pool_i = neigh_idx[:, :tf.shape(input=batch_xyz)[1] // cfg.sub_sampling_ratio[i], :]
-                up_i = tf.compat.v1.py_func(DP.knn_search, [sub_points, batch_xyz, 1], tf.int32)
+                neigh_idx = tf.py_func(DP.knn_search, [batch_xyz, batch_xyz, cfg.k_n], tf.int32)
+                sub_points = batch_xyz[:, :tf.shape(batch_xyz)[1] // cfg.sub_sampling_ratio[i], :]
+                pool_i = neigh_idx[:, :tf.shape(batch_xyz)[1] // cfg.sub_sampling_ratio[i], :]
+                up_i = tf.py_func(DP.knn_search, [sub_points, batch_xyz, 1], tf.int32)
                 input_points.append(batch_xyz)
                 input_neighbors.append(neigh_idx)
                 input_pools.append(pool_i)
@@ -265,7 +265,7 @@ class Semantic3D:
     def tf_augment_input(inputs):
         xyz = inputs[0]
         features = inputs[1]
-        theta = tf.random.uniform((1,), minval=0, maxval=2 * np.pi)
+        theta = tf.random_uniform((1,), minval=0, maxval=2 * np.pi)
         # Rotation matrices
         c, s = tf.cos(theta), tf.sin(theta)
         cs0 = tf.zeros_like(c)
@@ -279,25 +279,25 @@ class Semantic3D:
         min_s = cfg.augment_scale_min
         max_s = cfg.augment_scale_max
         if cfg.augment_scale_anisotropic:
-            s = tf.random.uniform((1, 3), minval=min_s, maxval=max_s)
+            s = tf.random_uniform((1, 3), minval=min_s, maxval=max_s)
         else:
-            s = tf.random.uniform((1, 1), minval=min_s, maxval=max_s)
+            s = tf.random_uniform((1, 1), minval=min_s, maxval=max_s)
 
         symmetries = []
         for i in range(3):
             if cfg.augment_symmetries[i]:
-                symmetries.append(tf.round(tf.random.uniform((1, 1))) * 2 - 1)
+                symmetries.append(tf.round(tf.random_uniform((1, 1))) * 2 - 1)
             else:
                 symmetries.append(tf.ones([1, 1], dtype=tf.float32))
         s *= tf.concat(symmetries, 1)
 
         # Create N x 3 vector of scales to multiply with stacked_points
-        stacked_scales = tf.tile(s, [tf.shape(input=transformed_xyz)[0], 1])
+        stacked_scales = tf.tile(s, [tf.shape(transformed_xyz)[0], 1])
 
         # Apply scales
         transformed_xyz = transformed_xyz * stacked_scales
 
-        noise = tf.random.normal(tf.shape(input=transformed_xyz), stddev=cfg.augment_noise)
+        noise = tf.random_normal(tf.shape(transformed_xyz), stddev=cfg.augment_noise)
         transformed_xyz = transformed_xyz + noise
         rgb = features[:, :3]
         stacked_features = tf.concat([transformed_xyz, rgb, features[:, 3:4]], axis=-1)
@@ -326,13 +326,11 @@ class Semantic3D:
         self.batch_val_data = self.batch_val_data.prefetch(cfg.val_batch_size)
         self.batch_test_data = self.batch_test_data.prefetch(cfg.val_batch_size)
 
-        #iter = tf.compat.v1.data.Iterator.from_structure(self.batch_train_data.output_types, self.batch_train_data.output_shapes)
-        iter = tf.compat.v1.data.Iterator.from_structure(tf.compat.v1.data.get_output_types(self.batch_train_data), 
-                                tf.compat.v1.data.get_output_shapes(self.batch_train_data))
+        iter = tf.data.Iterator.from_structure(self.batch_train_data.output_types, self.batch_train_data.output_shapes)
+        self.flat_inputs = iter.get_next()
         self.train_init_op = iter.make_initializer(self.batch_train_data)
         self.val_init_op = iter.make_initializer(self.batch_val_data)
         self.test_init_op = iter.make_initializer(self.batch_test_data)
-        self.flat_inputs = iter.get_next()
 
 
 if __name__ == '__main__':
@@ -357,12 +355,12 @@ if __name__ == '__main__':
     elif Mode == 'test':
         cfg.saving = False
         model = Network(dataset, cfg)
-        if FLAGS.model_path is not 'None':
-            chosen_snap = FLAGS.model_path
+        if FLAGS.mode_path is not 'None':
+            chosen_snap = FLAGS.mode_path
         else:
             chosen_snapshot = -1
-            # logs = np.sort([os.path.join('results', f) for f in os.listdir('results') if f.startswith('Log')])
-            chosen_folder = os.path.join('results', "Log_semantic3D") # logs[-1]
+            logs = np.sort([os.path.join('results', f) for f in os.listdir('results') if f.startswith('Log')])
+            chosen_folder = logs[-1]
             snap_path = join(chosen_folder, 'snapshots')
             snap_steps = [int(f[:-5].split('-')[-1]) for f in os.listdir(snap_path) if f[-5:] == '.meta']
             chosen_step = np.sort(snap_steps)[-1]
@@ -375,8 +373,8 @@ if __name__ == '__main__':
         # Visualize data #
         ##################
 
-        with tf.compat.v1.Session() as sess:
-            sess.run(tf.compat.v1.global_variables_initializer())
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
             sess.run(dataset.train_init_op)
             while True:
                 flat_inputs = sess.run(dataset.flat_inputs)

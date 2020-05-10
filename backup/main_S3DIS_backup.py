@@ -9,7 +9,7 @@ import tensorflow as tf
 import numpy as np
 import time, pickle, argparse, glob, os
 
-tf.compat.v1.disable_eager_execution()
+
 class S3DIS:
     def __init__(self, test_area_idx):
         self.name = 'S3DIS'
@@ -74,7 +74,7 @@ class S3DIS:
             self.input_names[cloud_split] += [cloud_name]
 
             size = sub_colors.shape[0] * 4 * 7
-            # print('{:s} {:.1f} MB loaded in {:.1f}s'.format(kd_tree_file.split('/')[-1], size * 1e-6, time.time() - t0))
+            print('{:s} {:.1f} MB loaded in {:.1f}s'.format(kd_tree_file.split('/')[-1], size * 1e-6, time.time() - t0))
 
         print('\nPreparing reprojected indices for testing')
 
@@ -90,7 +90,7 @@ class S3DIS:
                     proj_idx, labels = pickle.load(f)
                 self.val_proj += [proj_idx]
                 self.val_labels += [labels]
-                # print('{:s} done in {:.1f}s'.format(cloud_name, time.time() - t0))
+                print('{:s} done in {:.1f}s'.format(cloud_name, time.time() - t0))
 
     # Generate the input data flow
     def get_batch_gen(self, split):
@@ -176,10 +176,10 @@ class S3DIS:
             input_up_samples = []
 
             for i in range(cfg.num_layers):
-                neighbour_idx = tf.py_function(DP.knn_search, [batch_xyz, batch_xyz, cfg.k_n], tf.int32)
-                sub_points = batch_xyz[:, :tf.shape(input=batch_xyz)[1] // cfg.sub_sampling_ratio[i], :]
-                pool_i = neighbour_idx[:, :tf.shape(input=batch_xyz)[1] // cfg.sub_sampling_ratio[i], :]
-                up_i = tf.py_function(DP.knn_search, [sub_points, batch_xyz, 1], tf.int32)
+                neighbour_idx = tf.py_func(DP.knn_search, [batch_xyz, batch_xyz, cfg.k_n], tf.int32)
+                sub_points = batch_xyz[:, :tf.shape(batch_xyz)[1] // cfg.sub_sampling_ratio[i], :]
+                pool_i = neighbour_idx[:, :tf.shape(batch_xyz)[1] // cfg.sub_sampling_ratio[i], :]
+                up_i = tf.py_func(DP.knn_search, [sub_points, batch_xyz, 1], tf.int32)
                 input_points.append(batch_xyz)
                 input_neighbors.append(neighbour_idx)
                 input_pools.append(pool_i)
@@ -211,26 +211,24 @@ class S3DIS:
         self.batch_train_data = self.batch_train_data.prefetch(cfg.batch_size)
         self.batch_val_data = self.batch_val_data.prefetch(cfg.val_batch_size)
 
-        iter = tf.compat.v1.data.Iterator.from_structure(tf.compat.v1.data.get_output_types(self.batch_train_data), 
-                                tf.compat.v1.data.get_output_shapes(self.batch_train_data))
+        iter = tf.data.Iterator.from_structure(self.batch_train_data.output_types, self.batch_train_data.output_shapes)
+        self.flat_inputs = iter.get_next()
         self.train_init_op = iter.make_initializer(self.batch_train_data)
         self.val_init_op = iter.make_initializer(self.batch_val_data)
-        self.flat_inputs = iter.get_next()
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--gpu', type=int, default=0, help='the number of GPUs to use [default: 0]')
-    parser.add_argument('--test_area', type=int, default=1, help='Which area to use for test, option: 1-6 [default: 5]')
+    # parser.add_argument('--gpu', type=int, default=0,1,3,4, help='the number of GPUs to use [default: 0]')
+    parser.add_argument('--test_area', type=int, default=5, help='Which area to use for test, option: 1-6 [default: 5]')
     parser.add_argument('--mode', type=str, default='train', help='options: train, test, vis')
     parser.add_argument('--model_path', type=str, default='None', help='pretrained model path')
     FLAGS = parser.parse_args()
 
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(FLAGS.gpu)
+    os.environ['CUDA_VISIBLE_DEVICES'] = "0,1,2,3" # str(FLAGS.gpu)
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
     Mode = FLAGS.mode
-    cfg.test_area = FLAGS.test_area
 
     test_area = FLAGS.test_area
     dataset = S3DIS(test_area)
@@ -239,17 +237,15 @@ if __name__ == '__main__':
     if Mode == 'train':
         model = Network(dataset, cfg)
         model.train(dataset)
-
     elif Mode == 'test':
         cfg.saving = False
         model = Network(dataset, cfg)
-        if FLAGS.model_path is not 'None':
-            chosen_snap = FLAGS.model_path
+        if FLAGS.mode_path is not 'None':
+            chosen_snap = FLAGS.mode_path
         else:
-            # chosen_snapshot = -1
-            # logs = np.sort([os.path.join('results', f) for f in os.listdir('results') if f.startswith('Log')])
-            # chosen_folder = logs[-1]
-            chosen_folder = os.path.join("results", "Log_test_20_{}".format(cfg.test_area))
+            chosen_snapshot = -1
+            logs = np.sort([os.path.join('results', f) for f in os.listdir('results') if f.startswith('Log')])
+            chosen_folder = logs[-1]
             snap_path = join(chosen_folder, 'snapshots')
             snap_steps = [int(f[:-5].split('-')[-1]) for f in os.listdir(snap_path) if f[-5:] == '.meta']
             chosen_step = np.sort(snap_steps)[-1]
@@ -261,8 +257,8 @@ if __name__ == '__main__':
         # Visualize data #
         ##################
 
-        with tf.compat.v1.Session() as sess:
-            sess.run(tf.compat.v1.global_variables_initializer())
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
             sess.run(dataset.train_init_op)
             while True:
                 flat_inputs = sess.run(dataset.flat_inputs)

@@ -1,4 +1,4 @@
-from open3d import linux as open3d
+import open3d # import linux as open3d
 from os.path import join
 import numpy as np
 import colorsys, random, os, sys
@@ -42,12 +42,12 @@ class ConfigSemanticKITTI:
 
 
 class ConfigS3DIS:
-    k_n = 16  # KNN
+    k_n = 20  # KNN
     num_layers = 5  # Number of layers
     num_points = 40960  # Number of input points
     num_classes = 13  # Number of valid classes
     sub_grid_size = 0.04  # preprocess_parameter
-
+    
     batch_size = 6  # batch_size during training
     val_batch_size = 20  # batch_size during validation and test
     train_steps = 500  # Number of steps per epochs
@@ -55,6 +55,7 @@ class ConfigS3DIS:
 
     sub_sampling_ratio = [4, 4, 4, 4, 2]  # sampling ratio of random sampling at each layer
     d_out = [16, 64, 128, 256, 512]  # feature dimension
+    test_area = 0
 
     noise_init = 3.5  # noise initial parameter
     max_epoch = 100  # maximum epoch during training
@@ -88,7 +89,7 @@ class ConfigSemantic3D:
 
     train_sum_dir = 'train_log'
     saving = True
-    saving_path = None
+    saving_path = 'results/Log_semantic3D'
 
     augment_scale_anisotropic = True
     augment_symmetries = [True, False, False]

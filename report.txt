@@ -1,0 +1,23 @@
+TensorFlow 2.0 Upgrade Script
+-----------------------------
+Converted 1 files
+Detected 0 issues that require attention
+--------------------------------------------------------------------------------
+================================================================================
+Detailed log follows:
+
+================================================================================
+--------------------------------------------------------------------------------
+Processing file 'main_SemanticKITTI.py'
+ outputting to 'main_SemanticKITTI_v2.py'
+--------------------------------------------------------------------------------
+
+142:32: INFO: Renamed 'tf.py_func' to 'tf.compat.v1.py_func'
+143:42: INFO: Added keywords to args of function 'tf.shape'
+144:43: INFO: Added keywords to args of function 'tf.shape'
+145:23: INFO: Renamed 'tf.py_func' to 'tf.compat.v1.py_func'
+184:15: INFO: Renamed 'tf.data.Iterator' to 'tf.compat.v1.data.Iterator'
+231:13: INFO: Renamed 'tf.Session' to 'tf.compat.v1.Session'
+232:21: INFO: Renamed 'tf.global_variables_initializer' to 'tf.compat.v1.global_variables_initializer'
+--------------------------------------------------------------------------------
+
