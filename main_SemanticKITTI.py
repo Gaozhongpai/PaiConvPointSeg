@@ -193,8 +193,8 @@ class SemanticKITTI:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpu', type=int, default=0, help='the number of GPUs to use [default: 0]')
-    parser.add_argument('--mode', type=str, default='train', help='options: train, test, vis')
-    parser.add_argument('--test_area', type=str, default='14', help='options: 11,12,13,14,15,16,17,18,19,20,21')
+    parser.add_argument('--mode', type=str, default='test', help='options: train, test, vis')
+    parser.add_argument('--test_area', type=str, default='11', help='options: 11,12,13,14,15,16,17,18,19,20,21')
     parser.add_argument('--model_path', type=str, default='None', help='pretrained model path')
     FLAGS = parser.parse_args()
 
@@ -213,12 +213,13 @@ if __name__ == '__main__':
     elif Mode == 'test':
         cfg.saving = False
         model = Network(dataset, cfg)
-        if FLAGS.mode_path is not 'None':
-            chosen_snap = FLAGS.mode_path
+        if FLAGS.model_path is not 'None':
+            chosen_snap = FLAGS.model_path
         else:
-            chosen_snapshot = -1
-            logs = np.sort([os.path.join('results', f) for f in os.listdir('results') if f.startswith('Log')])
-            chosen_folder = logs[-1]
+            # chosen_snapshot = -1
+            # logs = np.sort([os.path.join('results', f) for f in os.listdir('results') if f.startswith('Log')])
+            # chosen_folder = logs[-1]
+            chosen_folder = "results/Log_SemanticKITTI"
             snap_path = join(chosen_folder, 'snapshots')
             snap_steps = [int(f[:-5].split('-')[-1]) for f in os.listdir(snap_path) if f[-5:] == '.meta']
             chosen_step = np.sort(snap_steps)[-1]
@@ -237,6 +238,6 @@ if __name__ == '__main__':
                 flat_inputs = sess.run(dataset.flat_inputs)
                 pc_xyz = flat_inputs[0]
                 sub_pc_xyz = flat_inputs[1]
-                labels = flat_inputs[21]
+                labels = flat_inputs[17]
                 Plot.draw_pc_sem_ins(pc_xyz[0, :, :], labels[0, :], cfg.num_classes + 1)
                 Plot.draw_pc_sem_ins(sub_pc_xyz[0, :, :], labels[0, 0:np.shape(sub_pc_xyz)[1]], cfg.num_classes + 1)

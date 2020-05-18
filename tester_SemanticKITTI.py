@@ -25,19 +25,19 @@ def log_out(out_str, f_out):
 
 class ModelTester:
     def __init__(self, model, dataset, restore_snap=None):
-        my_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-        self.saver = tf.train.Saver(my_vars, max_to_keep=100)
-        self.Log_file = open('log_test_' + str(dataset.val_split) + '.txt', 'a')
+        my_vars = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES)
+        self.saver = tf.compat.v1.train.Saver(my_vars, max_to_keep=100)
+        self.Log_file = open('log_test_2' + str(dataset.val_split) + '.txt', 'a')
 
         # Create a session for running Ops on the Graph.
         on_cpu = False
         if on_cpu:
-            c_proto = tf.ConfigProto(device_count={'GPU': 0})
+            c_proto = tf.compat.v1.ConfigProto(device_count={'GPU': 0})
         else:
-            c_proto = tf.ConfigProto()
+            c_proto = tf.compat.v1.ConfigProto()
             c_proto.gpu_options.allow_growth = True
-        self.sess = tf.Session(config=c_proto)
-        self.sess.run(tf.global_variables_initializer())
+        self.sess = tf.compat.v1.Session(config=c_proto)
+        self.sess.run(tf.compat.v1.global_variables_initializer())
 
         # Name of the snapshot to restore to (None if you want to start from beginning)
         if restore_snap is not None:

@@ -46,7 +46,7 @@ class Network:
         if self.config.saving:
             if self.config.saving_path is None:
                 # self.saving_path = time.strftime('results/Log_test_20_{}'.format(self.config.test_area))
-                self.saving_path = time.strftime('results/Log_Semantic3D_0')
+                self.saving_path = time.strftime('results/Log_Semantic3D_2')
             else:
                 self.saving_path = self.config.saving_path
             makedirs(self.saving_path) if not exists(self.saving_path) else None
@@ -84,7 +84,7 @@ class Network:
             self.accuracy = 0
             self.mIou_list = [0]
             self.class_weights = DP.get_class_weights(dataset.name)
-            self.Log_file = open('log_train_0_' + dataset.name + str(dataset.val_split) + '.txt', 'a')
+            self.Log_file = open('log_train_' + dataset.name + str(dataset.val_split) + '_2.txt', 'a')
 
         with tf.compat.v1.variable_scope('layers'):
             self.logits = self.inference(self.inputs, self.is_training)
@@ -142,7 +142,7 @@ class Network:
         self.sess.run(tf.compat.v1.global_variables_initializer())
 
         # Load trained model
-        self.saving_path = "results/Log_Semantic3D_0"
+        self.saving_path = "results/Log_Semantic3D_2"
         if exists(join(self.saving_path, "snapshots")):
             chosen_folder = self.saving_path
             snap_path = join(chosen_folder, 'snapshots')
@@ -329,21 +329,12 @@ class Network:
 
     def dilated_res_block(self, feature, xyz, K_points, K_padding, neigh_idx, d_out, name, is_training):
         f_pc = helper_tf_util.conv2d(feature, d_out // 2, [1, 1], name + 'mlp1', [1, 1], 'VALID', True, is_training)
-        f_pc = self.building_block(xyz, f_pc, K_points, K_padding, neigh_idx, d_out // 2, name + 'LFA', is_training)
+        f_pc = self.building_block(xyz, f_pc, K_points, K_padding, neigh_idx, d_out, name + 'LFA', is_training)
         f_pc = helper_tf_util.conv2d(f_pc, d_out * 2, [1, 1], name + 'mlp2', [1, 1], 'VALID', True, is_training,
                                      activation_fn=None)
         shortcut = helper_tf_util.conv2d(feature, d_out * 2, [1, 1], name + 'shortcut', [1, 1], 'VALID',
                                          activation_fn=None, bn=True, is_training=is_training)
         return tf.nn.leaky_relu(f_pc + shortcut)
-
-    def dilated_res_block3(self, feature, xyz, K_points, K_padding, neigh_idx, d_out, name, is_training):
-        f_pc = helper_tf_util.conv2d(feature, d_out // 2, [1, 1], name + 'mlp1', [1, 1], 'VALID', True, is_training)
-        f_pc = self.building_block(xyz, f_pc, K_points, K_padding, neigh_idx, d_out // 2, name + 'LFA', is_training)
-        f_pc = helper_tf_util.conv2d(f_pc, d_out, [1, 1], name + 'mlp2', [1, 1], 'VALID', True, is_training,
-                                     activation_fn=None)
-        shortcut = helper_tf_util.conv2d(feature, d_out, [1, 1], name + 'shortcut', [1, 1], 'VALID',
-                                         activation_fn=None, bn=True, is_training=is_training)
-        return tf.nn.leaky_relu(tf.concat([f_pc, shortcut], axis=-1))
 
     def dilated_res_block2(self, feature, xyz, K_points, K_padding, neigh_idx, d_out, name, is_training):
         d_in = feature.get_shape()[-1]
@@ -427,10 +418,10 @@ class Network:
         # #### 2 ####
         # f_xyz = helper_tf_util.conv2d(f_xyz, d_out // 2, [1, 1], name + 'mlp2', [1, 1], 'VALID', True, is_training)
         # f_neighbours = self.gather_neighbour(tf.squeeze(f_pc_agg, axis=2), neigh_idx)
-        # f_concat = tf.concat([f_neighbours, f_xyz], axis=-1)
+        # f_concat = tf.nn.leaky_relu(tf.concat([f_neighbours, f_xyz], axis=-1))
 
         # f_concat = tf.einsum("uvki,uvkj->uvij", f_concat, all_weights) # f_xyz = tf.matmul(f_xyz, all_weights)
-        # f_concat = tf.reshape(f_concat, shape=[-1, num_points, num_kpoints*d_in])
+        # f_concat = tf.reshape(f_concat, shape=[-1, num_points, num_kpoints*d_out])
         # f_pc_agg = helper_tf_util.conv1d(f_concat, d_out, 1, name + 'att_pooling_2', 1, 'VALID', True, is_training)
         # f_pc_agg = tf.reshape(f_pc_agg, [-1, num_points, 1, d_out])
         return f_pc_agg #, all_weights

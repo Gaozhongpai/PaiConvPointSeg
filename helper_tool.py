@@ -16,8 +16,8 @@ import nearest_neighbors.lib.python.nearest_neighbors as nearest_neighbors
 
 
 class ConfigSemanticKITTI:
-    k_n = 16  # KNN
-    num_layers = 4  # Number of layers
+    k_n = 20  # KNN
+    num_layers = 5  # Number of layers
     num_points = 4096 * 11  # Number of input points
     num_classes = 19  # Number of valid classes
     sub_grid_size = 0.06  # preprocess_parameter
@@ -27,8 +27,8 @@ class ConfigSemanticKITTI:
     train_steps = 500  # Number of steps per epochs
     val_steps = 100  # Number of validation steps per epoch
 
-    sub_sampling_ratio = [4, 4, 4, 4]  # sampling ratio of random sampling at each layer
-    d_out = [16, 64, 128, 256]  # feature dimension
+    sub_sampling_ratio = [4, 4, 4, 4, 2]  # sampling ratio of random sampling at each layer
+    d_out = [16, 64, 128, 256, 512]  # feature dimension
     num_sub_points = [num_points // 4, num_points // 16, num_points // 64, num_points // 256]
 
     noise_init = 3.5  # noise initial parameter
@@ -68,13 +68,13 @@ class ConfigS3DIS:
 
 
 class ConfigSemantic3D:
-    k_n = 16  # KNN
+    k_n = 20  # KNN
     num_layers = 5  # Number of layers
     num_points = 65536  # Number of input points
     num_classes = 8  # Number of valid classes
     sub_grid_size = 0.06  # preprocess_parameter
 
-    batch_size = 4  # batch_size during training
+    batch_size = 6  # batch_size during training
     val_batch_size = 16  # batch_size during validation and test
     train_steps = 500  # Number of steps per epochs
     val_steps = 100  # Number of validation steps per epoch
@@ -89,7 +89,7 @@ class ConfigSemantic3D:
 
     train_sum_dir = 'train_log'
     saving = True
-    saving_path = 'results/Log_semantic3D'
+    saving_path = None
 
     augment_scale_anisotropic = True
     augment_symmetries = [True, False, False]
