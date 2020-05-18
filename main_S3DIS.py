@@ -1,5 +1,5 @@
 from os.path import join
-from RandLANet import Network
+from PAIConv import Network
 from tester_S3DIS import ModelTester
 from helper_ply import read_ply
 from helper_tool import ConfigS3DIS as cfg

@@ -2,7 +2,7 @@ from helper_tool import DataProcessing as DP
 from helper_tool import ConfigSemanticKITTI as cfg
 from helper_tool import Plot
 from os.path import join
-from RandLANet import Network
+from PAIConv import Network
 from tester_SemanticKITTI import ModelTester
 import tensorflow as tf
 import numpy as np

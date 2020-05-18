@@ -15,8 +15,8 @@ git clone https://github.com/Gaozhongpai/PaiConvPoint && cd PaiConvPoint
 ```
 - Setup python environment
 ```
-conda create -n randlanet python=3.7
-source activate randlanet
+conda create -n paiconv python=3.7
+source activate paiconv
 pip install -r helper_requirements.txt
 sh compile_op.sh
 ```

@@ -1,5 +1,5 @@
 from os.path import join, exists
-from RandLANet import Network
+from PAIConv import Network
 from tester_Semantic3D import ModelTester
 from helper_ply import read_ply
 from helper_tool import Plot
