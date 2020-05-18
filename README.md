@@ -1,4 +1,4 @@
-# PAI-Conv: Permutable Anisotropic Convolutional Networks for Learning on Point Clouds
+# PAI-Conv: Permutable Anisotropic Convolutional Networks for Learning on Point Clouds [Segmentation]
 
 This is the official implementation of **PAI-Conv** for point cloud semantic segmentation:
  
