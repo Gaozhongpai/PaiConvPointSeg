@@ -11,7 +11,7 @@ This code has been tested with Python 3.7, Tensorflow 2, CUDA 12.0 on Ubuntu 18.
  
 - Clone the repository 
 ```
-git clone https://github.com/Gaozhongpai/PaiConvPoint && cd PaiConvPoint
+git clone https://github.com/Gaozhongpai/PaiConvPointSeg && cd PaiConvPointSeg
 ```
 - Setup python environment
 ```
