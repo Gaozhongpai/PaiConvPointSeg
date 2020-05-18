@@ -46,7 +46,7 @@ class Network:
         if self.config.saving:
             if self.config.saving_path is None:
                 # self.saving_path = time.strftime('results/Log_test_20_{}'.format(self.config.test_area))
-                self.saving_path = time.strftime('results/Log_Semantic3D_2')
+                self.saving_path = time.strftime('results/Log_SemanticKITTI_3')
             else:
                 self.saving_path = self.config.saving_path
             makedirs(self.saving_path) if not exists(self.saving_path) else None
@@ -84,7 +84,7 @@ class Network:
             self.accuracy = 0
             self.mIou_list = [0]
             self.class_weights = DP.get_class_weights(dataset.name)
-            self.Log_file = open('log_train_' + dataset.name + str(dataset.val_split) + '_2.txt', 'a')
+            self.Log_file = open('log_train_' + dataset.name + str(dataset.val_split) + '_3.txt', 'a')
 
         with tf.compat.v1.variable_scope('layers'):
             self.logits = self.inference(self.inputs, self.is_training)
@@ -142,7 +142,7 @@ class Network:
         self.sess.run(tf.compat.v1.global_variables_initializer())
 
         # Load trained model
-        self.saving_path = "results/Log_Semantic3D_2"
+        self.saving_path = "results/Log_SemanticKITTI_3"
         if exists(join(self.saving_path, "snapshots")):
             chosen_folder = self.saving_path
             snap_path = join(chosen_folder, 'snapshots')
