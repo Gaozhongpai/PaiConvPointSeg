@@ -237,6 +237,7 @@ class Semantic3D:
         # Collect flat inputs
         def tf_map(batch_xyz, batch_features, batch_labels, batch_pc_idx, batch_cloud_idx):
             batch_features = tf.map_fn(self.tf_augment_input, [batch_xyz, batch_features], dtype=tf.float32)
+            batch_xyz = batch_features[:, :, :3]
             input_points = []
             input_neighbors = []
             input_pools = []
