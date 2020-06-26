@@ -7,7 +7,7 @@ This is the official implementation of **PAI-Conv** for point cloud semantic seg
 
 	
 ### (1) Setup
-This code has been tested with Python 3.7, Tensorflow 2, CUDA 12.0 on Ubuntu 18.04.
+This code has been tested with Python 3.7, Tensorflow 2, CUDA 10.2 on Ubuntu 18.04.
  
 - Clone the repository 
 ```
